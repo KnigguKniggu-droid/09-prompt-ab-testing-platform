@@ -28,9 +28,9 @@ LATENCY_SPIKE_MS = 5000.0
 def analyze_trace(trace: TraceRecord) -> ForensicReport:
     """Run backward root cause analysis on a completed trace.
 
-    Walks spans in reverse order, checking each for fault indicators
-    according to the taxonomy. Collects all findings and produces a
-    severity-ranked forensic report.
+    Walks spans in reverse order for error and confidence checks,
+    then forward for context loss and propagation checks. Collects
+    all findings and produces a severity-ranked forensic report.
     """
     findings: list[ForensicFinding] = []
     spans_reversed = list(reversed(trace.spans))
@@ -44,6 +44,15 @@ def analyze_trace(trace: TraceRecord) -> ForensicReport:
             findings.append(finding)
         prev_output = span.output_data
         prev_step = span.step
+
+    forward_prev_output: dict[str, Any] | None = None
+    forward_prev_step: PipelineStep | None = None
+    for span in trace.spans:
+        finding = _check_context_loss_forward(span, trace, forward_prev_output, forward_prev_step)
+        if finding and not any(f.root_cause_span == span.step and f.fault_type == FaultTaxonomy.CONTEXT_LOSS for f in findings):
+            findings.append(finding)
+        forward_prev_output = span.output_data
+        forward_prev_step = span.step
 
     findings.sort(key=lambda f: f.confidence, reverse=True)
 
@@ -221,3 +230,44 @@ def _build_assessment(findings: list[ForensicFinding], trace: TraceRecord) -> st
     for f in findings:
         parts.append(f"  [{f.fault_type.value}] at {f.root_cause_span.value}: {f.description}")
     return "\n".join(parts)
+
+
+def _check_context_loss_forward(
+    span: SpanData,
+    trace: TraceRecord,
+    upstream_output: dict[str, Any] | None,
+    upstream_step: PipelineStep | None,
+) -> ForensicFinding | None:
+    """Check for context loss by comparing a span's output to its upstream input.
+
+    This forward-pass check detects when a step produces output that is
+    significantly smaller than the input it received from the previous step,
+    indicating that data was lost or filtered too aggressively.
+    """
+    if upstream_output is None or upstream_step is None:
+        return None
+    if span.status == SpanStatus.ERROR:
+        return None
+
+    output_size = len(str(span.output_data))
+    upstream_size = len(str(upstream_output))
+
+    if upstream_size > 0 and output_size / upstream_size < TOKEN_DROP_RATIO:
+        return ForensicFinding(
+            finding_id=str(uuid.uuid4()),
+            trace_id=trace.trace_id,
+            fault_type=FaultTaxonomy.CONTEXT_LOSS,
+            root_cause_span=span.step,
+            description=f"Significant data loss between {upstream_step.value} and {span.step.value}: "
+                       f"output size dropped to {output_size / upstream_size:.1%} of input",
+            evidence={
+                "upstream_size": upstream_size,
+                "output_size": output_size,
+                "drop_ratio": output_size / upstream_size,
+                "upstream_step": upstream_step.value,
+            },
+            confidence=0.8,
+            remediation="Check extraction logic for over-aggressive filtering or truncation",
+        )
+
+    return None

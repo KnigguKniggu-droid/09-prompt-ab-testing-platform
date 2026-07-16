@@ -46,6 +46,7 @@ REASONING_MARKERS = [
     "explain", "analyze", "reason", "why", "because", "therefore",
     "step by step", "derive", "calculate", "prove", "compare",
     "evaluate", "assess", "design", "architect", "implement",
+    "classify", "categorize", "sort", "label", "tag", "route",
 ]
 
 CODE_MARKERS = ["```", "def ", "function", "class ", "import ", "SELECT", "CREATE TABLE", "async "]

@@ -13,7 +13,7 @@ from typing import Any
 from src.models import CitationSpan, CitationVerification, RerankedResult
 
 CITATION_PATTERN = re.compile(r"\[([^\]]+)\]")
-MIN_CITATION_LENGTH = 3
+MIN_CITATION_LENGTH = 2
 
 
 def extract_citations(text: str) -> list[CitationSpan]:

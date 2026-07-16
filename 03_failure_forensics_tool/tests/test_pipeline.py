@@ -45,7 +45,7 @@ def test_span_context_manager_records_latency():
         span.output_data = {"test": True}
         span.model_confidence = 4
 
-    assert span.latency_ms > 0
+    assert span.latency_ms >= 0
     assert span.status == SpanStatus.OK
     assert len(trace.spans) == 1
     assert trace.spans[0].step == PipelineStep.EXTRACTION

@@ -72,7 +72,7 @@ class GitDiffEntry(BaseModel):
 
 
 class StalenessReport(BaseModel):
-"""Report of documentation staleness detected from git diff analysis."""
+    """Report of documentation staleness detected from git diff analysis."""
     affected_code_tokens: list[CodeToken] = Field(default_factory=list)
     affected_markdown_blocks: list[MarkdownBlock] = Field(default_factory=list)
     stale_links: list[CodeDocLink] = Field(default_factory=list)
